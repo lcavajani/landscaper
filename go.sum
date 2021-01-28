@@ -213,8 +213,7 @@ github.com/fsnotify/fsnotify v1.4.9 h1:hsms1Qyu0jgnwNXIxa+/V/PDsU6CfLf6CNO8H7IWo
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/gardener/component-cli v0.8.0 h1:FMeWrwufJQQoqd/ECvRwOIDWxrAkLoFtQTRHVQIpuFI=
 github.com/gardener/component-cli v0.8.0/go.mod h1:JZCu0TdcfHOjLVDlqCNbZnZpQXGGTxYZe+tZtmmHF5c=
-github.com/gardener/component-spec/bindings-go v0.0.27 h1:piu2FztCq68fnjlHe+UhTzFdJ465GUe+z1N05h8jzEo=
-github.com/gardener/component-spec/bindings-go v0.0.27/go.mod h1:AH9U64AlC1Vncu00Q8KIrxAuUvC6wM2F3cc+V9P99DE=
+github.com/gardener/component-spec/bindings-go v0.0.27/go.mod h1:53EIwICsuMgbY/MFCv5/lbOR5e1MQe1HY674Io+nGYE=
 github.com/gardener/component-spec/bindings-go v0.0.31 h1:zkJaUaOIyghTeJPnyFr1Y6lJsnZQSeUlDMd5z2rbXkY=
 github.com/gardener/component-spec/bindings-go v0.0.31/go.mod h1:53EIwICsuMgbY/MFCv5/lbOR5e1MQe1HY674Io+nGYE=
 github.com/garyburd/redigo v0.0.0-20150301180006-535138d7bcd7 h1:LofdAjjjqCSXMwLGgOgnE+rdPuvX9DxCqaHwKy7i/ko=

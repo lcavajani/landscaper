@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	apimacherrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -50,8 +52,8 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 	)
 
 	for i, manifestData := range m.ProviderConfiguration.Manifests {
-		uObj := &unstructured.Unstructured{}
-		if _, _, err := manifestDecoder.Decode(manifestData.Manifest.Raw, nil, uObj); err != nil {
+		obj := &unstructured.Unstructured{}
+		if _, _, err := manifestDecoder.Decode(manifestData.Manifest.Raw, nil, obj); err != nil {
 			m.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(m.DeployItem.Status.LastError,
 				currOp, "DecodeManifest", fmt.Sprintf("error while decoding manifest at index %d: %s", i, err.Error()))
 			return err
@@ -60,11 +62,11 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 		status.ManagedResources[i] = manifest.ManagedResourceStatus{
 			Policy: manifestData.Policy,
 			Resource: lsv1alpha1.TypedObjectReference{
-				APIVersion: uObj.GetAPIVersion(),
-				Kind:       uObj.GetKind(),
+				APIVersion: obj.GetAPIVersion(),
+				Kind:       obj.GetKind(),
 				ObjectReference: lsv1alpha1.ObjectReference{
-					Name:      uObj.GetName(),
-					Namespace: uObj.GetNamespace(),
+					Name:      obj.GetName(),
+					Namespace: obj.GetNamespace(),
 				},
 			},
 		}
@@ -72,8 +74,8 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 		if manifestData.Policy == manifest.IgnorePolicy {
 			continue
 		}
-		objects[i] = uObj
-		if err := m.ApplyObject(ctx, targetClient, manifestData.Policy, uObj); err != nil {
+		objects[i] = obj
+		if err := m.ApplyObject(ctx, targetClient, manifestData.Policy, obj); err != nil {
 			return err
 		}
 	}
@@ -93,10 +95,58 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 		return err
 	}
 
-	m.DeployItem.Status.Phase = lsv1alpha1.ExecutionPhaseSucceeded
 	m.DeployItem.Status.ProviderStatus = statusData
+	if err := m.kubeClient.Status().Update(ctx, m.DeployItem); err != nil {
+		m.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(m.DeployItem.Status.LastError,
+			currOp, "UpdateStatus", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
+	var (
+		currOp          = "CheckResourcesHealthManifests"
+		manifestDecoder = serializer.NewCodecFactory(ManifestScheme).UniversalDecoder()
+		status          = &manifest.ProviderStatus{}
+	)
+
+	if _, _, err := manifestDecoder.Decode(m.DeployItem.Status.ProviderStatus.Raw, nil, status); err != nil {
+		return err
+	}
+
+	if len(status.ManagedResources) == 0 {
+		return nil
+	}
+
+	objects := make([]*unstructured.Unstructured, len(status.ManagedResources))
+	for i, mr := range status.ManagedResources {
+		// do not check ignored resources.
+		if mr.Policy == manifest.IgnorePolicy {
+			continue
+		}
+		ref := mr.Resource
+		obj := kutil.ObjectFromTypedObjectReference(&ref)
+		objects[i] = obj
+	}
+
+	backoff := wait.Backoff{
+		Duration: 5 * time.Second,
+		Factor:   0,
+		Steps:    3,
+	}
+
+	if err := kutil.WaitObjectsReady(ctx, backoff, m.log, m.kubeClient, objects); err != nil {
+		m.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(m.DeployItem.Status.LastError,
+			currOp, "CheckResourcesReadiness", err.Error())
+		return err
+	}
+
+	m.DeployItem.Status.Phase = lsv1alpha1.ExecutionPhaseSucceeded
 	m.DeployItem.Status.ObservedGeneration = m.DeployItem.Generation
 	m.DeployItem.Status.LastError = nil
+
 	return m.kubeClient.Status().Update(ctx, m.DeployItem)
 }
 
@@ -104,7 +154,7 @@ func (m *Manifest) Delete(ctx context.Context) error {
 	currOp := "DeleteManifests"
 	m.DeployItem.Status.Phase = lsv1alpha1.ExecutionPhaseDeleting
 
-	if len(m.ProviderStatus.ManagedResources) == 0 {
+	if m.ProviderStatus == nil || len(m.ProviderStatus.ManagedResources) == 0 {
 		controllerutil.RemoveFinalizer(m.DeployItem, lsv1alpha1.LandscaperFinalizer)
 		return m.kubeClient.Update(ctx, m.DeployItem)
 	}
@@ -122,16 +172,7 @@ func (m *Manifest) Delete(ctx context.Context) error {
 			continue
 		}
 		ref := mr.Resource
-		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": ref.APIVersion,
-				"kind":       ref.Kind,
-				"metadata": map[string]interface{}{
-					"name":      ref.Name,
-					"namespace": ref.Namespace,
-				},
-			},
-		}
+		obj := kutil.ObjectFromTypedObjectReference(&ref)
 		if err := kubeClient.Delete(ctx, obj); err != nil {
 			if apierrors.IsNotFound(err) {
 				continue
@@ -185,6 +226,10 @@ func (m *Manifest) ApplyObject(ctx context.Context, kubeClient client.Client, po
 	// inject manifest specific labels
 	kutil.SetMetaDataLabel(obj, manifestv1alpha2.ManagedDeployItemLabel, m.DeployItem.Name)
 
+	if err := kutil.SetRequiredNestedFieldsFromObj(&currObj, obj); err != nil {
+		return err
+	}
+
 	switch m.ProviderConfiguration.UpdateStrategy {
 	case manifest.UpdateStrategyUpdate:
 		if err := kubeClient.Update(ctx, obj); err != nil {
@@ -220,32 +265,30 @@ func (m *Manifest) cleanupOrphanedResources(ctx context.Context, kubeClient clie
 			continue
 		}
 		ref := mr.Resource
-		uObj := unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": ref.APIVersion,
-				"kind":       ref.Kind,
-				"metadata": map[string]interface{}{
-					"name":      ref.Name,
-					"namespace": ref.Namespace,
-				},
-			},
-		}
-		if err := kubeClient.Get(ctx, kutil.ObjectKey(ref.Name, ref.Namespace), &uObj); err != nil {
+		obj := kutil.ObjectFromTypedObjectReference(&ref)
+		if err := kubeClient.Get(ctx, kutil.ObjectKey(ref.Name, ref.Namespace), obj); err != nil {
 			if apierrors.IsNotFound(err) {
 				continue
 			}
-			return fmt.Errorf("unable to get object %s %s: %w", uObj.GroupVersionKind().String(), uObj.GetName(), err)
+			return fmt.Errorf("unable to get object %s %s: %w", obj.GroupVersionKind().String(), obj.GetName(), err)
 		}
 
-		if !containsUnstructuredObject(&uObj, currentObjects) {
+		if !containsUnstructuredObject(obj, currentObjects) {
 			wg.Add(1)
-			go func(obj unstructured.Unstructured) {
+			go func(obj *unstructured.Unstructured) {
 				defer wg.Done()
-				if err := kubeClient.Delete(ctx, &obj); err != nil {
+				if err := kubeClient.Delete(ctx, obj); err != nil {
 					allErrs = append(allErrs, fmt.Errorf("unable to delete %s %s/%s: %w", obj.GroupVersionKind().String(), obj.GetName(), obj.GetNamespace(), err))
 				}
-				// todo: wait for deletion
-			}(uObj)
+
+				pollCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+				defer cancel()
+				delCondFunc := kutil.GenerateDeleteObjectConditionFunc(ctx, kubeClient, obj)
+				err := wait.PollImmediateUntil(5*time.Second, delCondFunc, pollCtx.Done())
+				if err != nil {
+					allErrs = append(allErrs, err)
+				}
+			}(obj)
 		}
 	}
 	wg.Wait()

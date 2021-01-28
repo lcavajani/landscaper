@@ -28,6 +28,7 @@ import (
 	helmv1alpha1validation "github.com/gardener/landscaper/apis/deployer/helm/v1alpha1/validation"
 	"github.com/gardener/landscaper/pkg/deployer/helm/chartresolver"
 	"github.com/gardener/landscaper/pkg/utils"
+	kutil "github.com/gardener/landscaper/pkg/utils/kubernetes"
 )
 
 const (
@@ -73,7 +74,7 @@ func New(log logr.Logger, helmconfig *helmv1alpha1.Configuration, kubeClient cli
 	}
 
 	return &Helm{
-		log:                   log,
+		log:                   log.WithValues("deployitem", kutil.ObjectKey(item.Name, item.Namespace)),
 		kubeClient:            kubeClient,
 		Configuration:         helmconfig,
 		DeployItem:            item,
