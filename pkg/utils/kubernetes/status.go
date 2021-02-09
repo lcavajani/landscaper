@@ -57,7 +57,7 @@ func WaitObjectsReady(ctx context.Context, backoff wait.Backoff, log logr.Logger
 
 	currStep := 1
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		log.V(1).Info("wait resources ready", "check", fmt.Sprintf("%d/%d", currStep, backoff.Steps))
+		log.V(3).Info("wait resources ready", "check", fmt.Sprintf("%d/%d", currStep, backoff.Steps))
 		currStep++
 		var err error
 		objStates, err = GetObjectStates(ctx, log, kubeClient, objects)
@@ -119,12 +119,12 @@ func GetObjectStates(ctx context.Context, log logr.Logger, kubeClient client.Cli
 				"kind", obj.GetKind(),
 				"resource", ObjectKey(obj.GetName(), obj.GetNamespace()))
 
-			objLog.V(1).Info("get resource status")
+			objLog.V(3).Info("get resource status")
 			status, err := Status(obj)
 			if err != nil {
 				allErrs = append(allErrs, err)
 			}
-			objLog.V(1).Info("resource status", "status", status)
+			objLog.V(3).Info("resource status", "status", status)
 
 			objStates[i] = &ObjectState{
 				Object: obj,
@@ -164,7 +164,7 @@ func FilterObjectStateNotInStatusType(objStates ObjectStates, status StatusType)
 	return objectsNotInStatus
 }
 
-// Status returns the status for a given object and SatusReady
+// Status returns the status for a given object and StatusReady
 // by default for non-managed objects.
 func Status(u *unstructured.Unstructured) (StatusType, error) {
 	gk := u.GroupVersionKind().GroupKind()
@@ -204,7 +204,6 @@ func Status(u *unstructured.Unstructured) (StatusType, error) {
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, rc); err != nil {
 			return StatusUnknown, err
 		}
-
 		return ReplicationControllerStatus(rc)
 	default:
 		return StatusReady, nil

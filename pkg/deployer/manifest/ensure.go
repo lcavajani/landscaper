@@ -28,6 +28,7 @@ import (
 	kutil "github.com/gardener/landscaper/pkg/utils/kubernetes"
 )
 
+// Reconcile handles the reconcile flow for a manifest deploy item.
 func (m *Manifest) Reconcile(ctx context.Context) error {
 	currOp := "ReconcileManifests"
 	m.DeployItem.Status.Phase = lsv1alpha1.ExecutionPhaseProgressing
@@ -105,6 +106,7 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 	return nil
 }
 
+// CheckResourcesHealth checks if the managed resources are Ready/Healthy.
 func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
 	var (
 		currOp          = "CheckResourcesHealthManifests"
@@ -150,6 +152,7 @@ func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
 	return m.kubeClient.Status().Update(ctx, m.DeployItem)
 }
 
+// Delete deletes the managed resources from the cluster.
 func (m *Manifest) Delete(ctx context.Context) error {
 	currOp := "DeleteManifests"
 	m.DeployItem.Status.Phase = lsv1alpha1.ExecutionPhaseDeleting
