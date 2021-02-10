@@ -18,6 +18,7 @@ import (
 	lsv1alpha1 "github.com/gardener/landscaper/apis/core/v1alpha1"
 	containerv1alpha1 "github.com/gardener/landscaper/apis/deployer/container/v1alpha1"
 	helmv1alpha1 "github.com/gardener/landscaper/apis/deployer/helm/v1alpha1"
+	manifestv1alpha2 "github.com/gardener/landscaper/apis/deployer/manifest/v1alpha2"
 )
 
 func main() {
@@ -41,6 +42,10 @@ func run() error {
 		{prefix: "helm_", obj: helmv1alpha1.Configuration{}},
 		{prefix: "helm_", obj: helmv1alpha1.ProviderConfiguration{}},
 		{prefix: "helm_", obj: helmv1alpha1.ProviderStatus{}},
+
+		{prefix: "manifest_", obj: manifestv1alpha2.Configuration{}},
+		{prefix: "manifest_", obj: manifestv1alpha2.ProviderConfiguration{}},
+		{prefix: "manifest_", obj: manifestv1alpha2.ProviderStatus{}},
 	}
 
 	for _, t := range types {

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "$ref": "#/definitions/ProviderConfiguration",
+  "definitions": {
+    "Manifest": {
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "manifest": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/RawExtension"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProviderConfiguration": {
+      "required": [
+        "kubeconfig"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "kubeconfig": {
+          "type": "string"
+        },
+        "updateStrategy": {
+          "type": "string"
+        },
+        "manifests": {
+          "items": {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "$ref": "#/definitions/Manifest"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RawExtension": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

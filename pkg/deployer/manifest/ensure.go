@@ -17,14 +17,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	apimacherrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	lsv1alpha1 "github.com/gardener/landscaper/apis/core/v1alpha1"
 	lsv1alpha1helper "github.com/gardener/landscaper/apis/core/v1alpha1/helper"
 	"github.com/gardener/landscaper/apis/deployer/manifest"
-	manifestv1alpha2 "github.com/gardener/landscaper/apis/deployer/manifest/v1alpha2"
 	kutil "github.com/gardener/landscaper/pkg/utils/kubernetes"
 )
 
@@ -133,13 +131,8 @@ func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
 		objects[i] = obj
 	}
 
-	backoff := wait.Backoff{
-		Duration: 5 * time.Second,
-		Factor:   0,
-		Steps:    3,
-	}
-
-	if err := kutil.WaitObjectsReady(ctx, backoff, m.log, m.kubeClient, objects); err != nil {
+	timeOut := time.Duration(m.Configuration.HealthCheckTimeOutSeconds) * time.Second
+	if err := kutil.WaitObjectsReady(ctx, timeOut, m.log, m.kubeClient, objects); err != nil {
 		m.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(m.DeployItem.Status.LastError,
 			currOp, "CheckResourcesReadiness", err.Error())
 		return err
@@ -210,7 +203,7 @@ func (m *Manifest) ApplyObject(ctx context.Context, kubeClient client.Client, po
 			return err
 		}
 		// inject manifest specific labels
-		kutil.SetMetaDataLabel(obj, manifestv1alpha2.ManagedDeployItemLabel, m.DeployItem.Name)
+		kutil.SetMetaDataLabel(obj, manifest.ManagedDeployItemLabel, m.DeployItem.Name)
 		if err := kubeClient.Create(ctx, obj); err != nil {
 			err = fmt.Errorf("unable to create resource %s: %w", key.String(), err)
 			m.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(m.DeployItem.Status.LastError,
@@ -222,12 +215,12 @@ func (m *Manifest) ApplyObject(ctx context.Context, kubeClient client.Client, po
 
 	// if fallback policy is set and the resource is already managed by another deployer
 	// we are not allowed to manage that resource
-	if policy == manifest.FallbackPolicy && !kutil.HasLabelWithValue(obj, manifestv1alpha2.ManagedDeployItemLabel, m.DeployItem.Name) {
+	if policy == manifest.FallbackPolicy && !kutil.HasLabelWithValue(obj, manifest.ManagedDeployItemLabel, m.DeployItem.Name) {
 		m.log.Info("resource is already managed", "resource", key.String())
 		return nil
 	}
 	// inject manifest specific labels
-	kutil.SetMetaDataLabel(obj, manifestv1alpha2.ManagedDeployItemLabel, m.DeployItem.Name)
+	kutil.SetMetaDataLabel(obj, manifest.ManagedDeployItemLabel, m.DeployItem.Name)
 
 	if err := kutil.SetRequiredNestedFieldsFromObj(&currObj, obj); err != nil {
 		return err
@@ -284,10 +277,8 @@ func (m *Manifest) cleanupOrphanedResources(ctx context.Context, kubeClient clie
 					allErrs = append(allErrs, fmt.Errorf("unable to delete %s %s/%s: %w", obj.GroupVersionKind().String(), obj.GetName(), obj.GetNamespace(), err))
 				}
 
-				pollCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-				defer cancel()
-				delCondFunc := kutil.GenerateDeleteObjectConditionFunc(ctx, kubeClient, obj)
-				err := wait.PollImmediateUntil(5*time.Second, delCondFunc, pollCtx.Done())
+				timeOut := time.Duration(m.Configuration.DeleteTimeOutSeconds) * time.Second
+				err := kutil.DeleteAndWaitForObjectDeleted(ctx, kubeClient, timeOut, obj)
 				if err != nil {
 					allErrs = append(allErrs, err)
 				}

@@ -12,11 +12,10 @@ package v1alpha1
 import (
 	unsafe "unsafe"
 
-	conversion "k8s.io/apimachinery/pkg/conversion"
-	runtime "k8s.io/apimachinery/pkg/runtime"
-
 	corev1alpha1 "github.com/gardener/landscaper/apis/core/v1alpha1"
 	manifest "github.com/gardener/landscaper/apis/deployer/manifest"
+	conversion "k8s.io/apimachinery/pkg/conversion"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 func init() {
@@ -60,6 +59,8 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1alpha1_Configuration_To_manifest_Configuration(in *Configuration, out *manifest.Configuration, s conversion.Scope) error {
+	out.HealthCheckTimeOutSeconds = in.HealthCheckTimeOutSeconds
+	out.DeleteTimeOutSeconds = in.DeleteTimeOutSeconds
 	out.TargetSelector = *(*[]corev1alpha1.TargetSelector)(unsafe.Pointer(&in.TargetSelector))
 	return nil
 }
@@ -70,6 +71,8 @@ func Convert_v1alpha1_Configuration_To_manifest_Configuration(in *Configuration,
 }
 
 func autoConvert_manifest_Configuration_To_v1alpha1_Configuration(in *manifest.Configuration, out *Configuration, s conversion.Scope) error {
+	out.HealthCheckTimeOutSeconds = in.HealthCheckTimeOutSeconds
+	out.DeleteTimeOutSeconds = in.DeleteTimeOutSeconds
 	out.TargetSelector = *(*[]corev1alpha1.TargetSelector)(unsafe.Pointer(&in.TargetSelector))
 	return nil
 }
@@ -121,7 +124,7 @@ func autoConvert_v1alpha1_ProviderStatus_To_manifest_ProviderStatus(in *Provider
 		*out = make([]manifest.ManagedResourceStatus, len(*in))
 		for i := range *in {
 			// TODO: Inefficient conversion - can we improve it?
-			if err := s.Convert(&(*in)[i], &(*out)[i], 0); err != nil {
+			if err := s.Convert(&(*in)[i], &(*out)[i]); err != nil {
 				return err
 			}
 		}

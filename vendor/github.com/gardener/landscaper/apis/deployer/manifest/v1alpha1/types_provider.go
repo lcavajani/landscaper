@@ -13,7 +13,7 @@ import (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ProviderConfiguration is the helm deployer configuration that is expected in a DeployItem
+// ProviderConfiguration is the manifest deployer configuration that is expected in a DeployItem
 type ProviderConfiguration struct {
 	metav1.TypeMeta
 	// Kubeconfig is the base64 encoded kubeconfig file.
@@ -38,9 +38,9 @@ const (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ProviderStatus is the helm provider specific status
+// ProviderStatus is the manifest provider specific status
 type ProviderStatus struct {
 	metav1.TypeMeta
-	// ManagedResources contains all kubernetes resources that are deployed by the helm deployer.
+	// ManagedResources contains all kubernetes resources that are deployed by the manifest deployer.
 	ManagedResources []lsv1alpha1.TypedObjectReference `json:"managedResources,omitempty"`
 }

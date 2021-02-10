@@ -59,6 +59,8 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1alpha1_Configuration_To_manifest_Configuration(in *Configuration, out *manifest.Configuration, s conversion.Scope) error {
+	out.HealthCheckTimeOutSeconds = in.HealthCheckTimeOutSeconds
+	out.DeleteTimeOutSeconds = in.DeleteTimeOutSeconds
 	out.TargetSelector = *(*[]corev1alpha1.TargetSelector)(unsafe.Pointer(&in.TargetSelector))
 	return nil
 }
@@ -69,6 +71,8 @@ func Convert_v1alpha1_Configuration_To_manifest_Configuration(in *Configuration,
 }
 
 func autoConvert_manifest_Configuration_To_v1alpha1_Configuration(in *manifest.Configuration, out *Configuration, s conversion.Scope) error {
+	out.HealthCheckTimeOutSeconds = in.HealthCheckTimeOutSeconds
+	out.DeleteTimeOutSeconds = in.DeleteTimeOutSeconds
 	out.TargetSelector = *(*[]corev1alpha1.TargetSelector)(unsafe.Pointer(&in.TargetSelector))
 	return nil
 }

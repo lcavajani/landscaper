@@ -24,6 +24,14 @@ const ManagedDeployItemLabel = "helm.deployer.landscaper.gardener.cloud/deployit
 // ProviderConfiguration is the helm deployer configuration that configures the controller
 type Configuration struct {
 	metav1.TypeMeta
+	// HealthCheckTimeOutSeconds is the time to wait in seconds before giving up on a resource to be ready.
+	// Defaults to 60s.
+	// +optional
+	HealthCheckTimeOutSeconds int32 `json:"healthCheckTimeOutSeconds,omitempty"`
+	// DeleteTimeOutSeconds is the time to wait in seconds before giving up on a resource to be deleted.
+	// Defaults to 60s.
+	// +optional
+	DeleteTimeOutSeconds int32 `json:"deleteTimeOutSeconds,omitempty"`
 	// OCI configures the oci client of the controller
 	OCI *config.OCIConfiguration `json:"oci,omitempty"`
 	// TargetSelector describes all selectors the deployer should depend on.

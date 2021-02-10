@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -49,15 +50,15 @@ func (o *ObjectStates) GetObjectsNotInStatusType(status StatusType) []*unstructu
 
 // WaitObjectsReady waits for objects to be in ready status and
 // returns an error if all the objects are not ready after the backoff duration.
-func WaitObjectsReady(ctx context.Context, backoff wait.Backoff, log logr.Logger, kubeClient client.Client, objects []*unstructured.Unstructured) error {
+func WaitObjectsReady(ctx context.Context, timeOut time.Duration, log logr.Logger, kubeClient client.Client, objects []*unstructured.Unstructured) error {
 	var (
 		ready     = false
 		objStates ObjectStates
 	)
 
 	currStep := 1
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		log.V(3).Info("wait resources ready", "check", fmt.Sprintf("%d/%d", currStep, backoff.Steps))
+	err := wait.PollImmediate(5*time.Second, timeOut, func() (bool, error) {
+		log.V(3).Info("wait resources ready", "check", fmt.Sprintf("try: %d", currStep))
 		currStep++
 		var err error
 		objStates, err = GetObjectStates(ctx, log, kubeClient, objects)

@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	apimacherrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
@@ -142,13 +141,8 @@ func (h *Helm) CheckResourcesHealth(ctx context.Context) error {
 		objects[i] = obj
 	}
 
-	backoff := wait.Backoff{
-		Duration: 5 * time.Second,
-		Factor:   0,
-		Steps:    3,
-	}
-
-	if err := kutil.WaitObjectsReady(ctx, backoff, h.log, h.kubeClient, objects); err != nil {
+	timeOut := time.Duration(h.Configuration.HealthCheckTimeOutSeconds) * time.Second
+	if err := kutil.WaitObjectsReady(ctx, timeOut, h.log, h.kubeClient, objects); err != nil {
 		h.DeployItem.Status.LastError = lsv1alpha1helper.UpdatedError(h.DeployItem.Status.LastError,
 			currOp, "CheckResourcesReadiness", err.Error())
 		return err
@@ -304,14 +298,8 @@ func (h *Helm) cleanupOrphanedResources(ctx context.Context, kubeClient client.C
 			wg.Add(1)
 			go func(obj *unstructured.Unstructured) {
 				defer wg.Done()
-				if err := kubeClient.Delete(ctx, obj); err != nil {
-					allErrs = append(allErrs, fmt.Errorf("unable to delete %s %s/%s: %w", obj.GroupVersionKind().String(), obj.GetName(), obj.GetNamespace(), err))
-				}
-
-				pollCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-				defer cancel()
-				delCondFunc := kutil.GenerateDeleteObjectConditionFunc(ctx, kubeClient, obj)
-				err := wait.PollImmediateUntil(5*time.Second, delCondFunc, pollCtx.Done())
+				timeOut := time.Duration(h.Configuration.DeleteTimeOutSeconds) * time.Second
+				err := kutil.DeleteAndWaitForObjectDeleted(ctx, kubeClient, timeOut, obj)
 				if err != nil {
 					allErrs = append(allErrs, err)
 				}
